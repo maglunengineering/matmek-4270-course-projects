@@ -2,8 +2,7 @@ from numpy import *
 
 def solver(I, a, T, dt, theta):
     """Solve u'=-a*u, u(0)=I, for t in (0,T] with steps of dt."""
-    dt = float(dt)            # avoid integer division
-    Nt = int(round(T/dt))     # no of time intervals
+    Nt = int(T/dt)            # no of time intervals
     T = Nt*dt                 # adjust T to fit time step dt
     u = zeros(Nt+1)           # array of u[n] values
     t = linspace(0, T, Nt+1)  # time mesh

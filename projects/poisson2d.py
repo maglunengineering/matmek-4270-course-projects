@@ -29,7 +29,7 @@ class Poisson2D:
         raise NotImplementedError
 
     def assemble(self, f=None):
-        """Return assemble coefficient matrix A and right hand side vector b"""
+        """Return assembled coefficient matrix A and right hand side vector b"""
         raise NotImplementedError
 
     def l2_error(self, u, ue):
@@ -45,12 +45,10 @@ class Poisson2D:
         raise NotImplementedError
 
     def __call__(self, f=implemented_function('f', lambda x, y: 2)(x, y)):
-        """Solve Poisson's equation with a given righ hand side function
+        """Solve Poisson's equation with a given right hand side function
 
         Parameters
         ----------
-        N : int
-            The number of uniform intervals
         f : Sympy function
             The right hand side function f(x, y)
 
