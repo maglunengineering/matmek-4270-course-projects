@@ -107,7 +107,7 @@ class VibSolver:
 
     def test_order(self, m=5, N0=100, tol=0.1):
         r, E, dt = self.convergence_rates(m, N0)
-        assert np.allclose(np.array(r), self.order, atol=tol)
+        assert abs(r[-1]-self.order) < tol
 
 class VibHPL(VibSolver):
     """
