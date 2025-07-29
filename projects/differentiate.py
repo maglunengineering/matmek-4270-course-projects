@@ -1,11 +1,11 @@
 import numpy as np
 
 
-def differentiate(u, dt):
-    pass
+def differentiate(u: np.ndarray, dt: float) -> np.ndarray:
+    raise RuntimeError
 
-def differentiate_vector(u, dt):
-    pass
+def differentiate_vector(u: np.ndarray, dt: float) -> np.ndarray:
+    raise RuntimeError
 
 def test_differentiate():
     t = np.linspace(0, 1, 10)
