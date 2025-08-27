@@ -2,10 +2,10 @@ import numpy as np
 
 
 def differentiate(u: np.ndarray, dt: float) -> np.ndarray:
-    raise RuntimeError
+    raise NotImplementedError
 
 def differentiate_vector(u: np.ndarray, dt: float) -> np.ndarray:
-    raise RuntimeError
+    raise NotImplementedError
 
 def test_differentiate():
     t = np.linspace(0, 1, 10)
