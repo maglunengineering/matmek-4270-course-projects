@@ -114,7 +114,7 @@ class VibSolver:
 
     def test_order(self, m: int = 5, N0: int = 100, tol: float = 0.1) -> None:
         r, E, dt = self.convergence_rates(m, N0)
-        assert abs(r[-1] - self.order) < tol, f'Expected {self.order}, got {r[-1]}'
+        assert abs(r[-1] - self.order) < tol, f'Expected {self.order}, got {r[-1]} ({type(self).__name__})'
 
 
 class VibHPL(VibSolver):
@@ -210,7 +210,30 @@ class VibFD3(VibSolver):
         assert T.is_integer() and T % 2 == 0
 
     def __call__(self) -> np.ndarray:
-        u = np.zeros(self.Nt + 1)
+        rhs = np.zeros(self.Nt + 1)
+        rhs[0] = self.I
+
+        dt = self.T / self.Nt
+        D = np.zeros((self.Nt + 1, self.Nt + 1))
+
+        """
+        Like VibFD2 above, non-boundary equations are 1/dt² [1, -2+(w dt)², 1] @ [u[i-1], u[i], i[i+1]].T = [0.0]
+        Boundary eqn (1) is [1, 0, 0, ...] @ u = [I]
+        Boundary eqn (2) is [.., 1, -4, 3] @ u = [0] for 2nd order accurate bw difference
+
+        """
+
+        idiag = np.arange(self.Nt + 1)
+        D[idiag, idiag] = -2 + (self.w * dt)**2
+        D[idiag[:-1], (idiag+1)[:-1]] = 1.0
+        D[(idiag+1)[:-1], idiag[:-1]] = 1.0
+
+        D *= 1.0/dt**2
+
+        D[0, 0:2] = [1.0, 0.0] # Boundary eqn (1) = [1, 0, ..] @ u = rhs[0] = I
+        D[-1, -3:] = [1.0, -4.0, 3.0] # Boundary eqn (2) = 1/dt² [.., 1, -4, 3] @ u = rhs[-1] = 0
+
+        u = np.linalg.solve(D, rhs)
         return u
 
 
