@@ -114,7 +114,7 @@ class VibSolver:
 
     def test_order(self, m: int = 5, N0: int = 100, tol: float = 0.1) -> None:
         r, E, dt = self.convergence_rates(m, N0)
-        assert abs(r[-1] - self.order) < tol
+        assert abs(r[-1] - self.order) < tol, f'Expected {self.order}, got {r[-1]}'
 
 
 class VibHPL(VibSolver):
@@ -133,6 +133,8 @@ class VibHPL(VibSolver):
         for n in range(1, self.Nt):
             u[n + 1] = 2 * u[n] - u[n - 1] - self.dt**2 * self.w**2 * u[n]
         return u
+    
+    
 
 
 class VibFD2(VibSolver):
@@ -152,7 +154,41 @@ class VibFD2(VibSolver):
         assert T.is_integer() and T % 2 == 0
 
     def __call__(self) -> np.ndarray:
-        u = np.zeros(self.Nt + 1)
+
+        rhs = np.zeros(self.Nt + 1)
+        rhs[0] = self.I
+        rhs[-1] = self.I
+
+        """We have 
+        u'' + w² u[n] = 0
+        where u'' = (u[n+1] - 2*u[n] + u[n-1])/(dt²)
+        i.e. u'' = 1/dt² [1 -2 1] @ [u[i-1], u[i], u[i+1]]
+
+        In total, 
+        u'' = 1/dt² [1 -2 1] @ [u[i-1] u[i] u[i+1]] + w²u[i],
+        u'' = 1/dt² [1 -2 + (w dt)² 1] @ [u[i-1] u[i] u[i+1]]
+
+        """
+
+        dt = self.T / self.Nt
+        D = np.zeros((self.Nt + 1, self.Nt + 1))
+
+        idiag = np.arange(self.Nt + 1)
+        D[idiag, idiag] = -2 + (self.w * dt)**2 # Main diagonal is this (-g or whatever) 
+        D[idiag[:-1], (idiag+1)[:-1]] = 1.0 # Neighboring diagonals are 1.0/dt²
+        D[(idiag+1)[:-1], idiag[:-1]] = 1.0
+
+        """
+        Now all non-boundary equations are 1/dt² [1, -2+(w dt)², 1] @ [u[i-1], u[i], i[i+1]].T = [0.0]
+        Boundary equations are [1, 0, 0, ...] @ u = [I] and 
+        [0, 0, .., 0, 1] @ u = [I]
+        """
+
+        D *= 1.0/dt**2
+        D[0, 0:2] = [1.0, 0.0] 
+        D[-1, -2:] = [0.0, 1.0]
+
+        u = np.linalg.solve(D, rhs)
         return u
 
 
