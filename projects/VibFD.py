@@ -9,6 +9,7 @@ We use various boundary conditions.
 """
 
 import numpy as np
+import scipy
 import matplotlib.pyplot as plt
 import sympy as sp
 
@@ -249,7 +250,35 @@ class VibFD4(VibFD2):
     order: int = 4
 
     def __call__(self) -> np.ndarray:
-        u = np.zeros(self.Nt + 1)
+        rhs = np.zeros(self.Nt + 1)
+        rhs[0] = self.I
+        rhs[-1] = self.I
+
+        dt = self.T / self.Nt
+
+        """
+        Fourth order. Now our stencil is 
+        1/(12 dt²)[-1, 16, -30, 16, -1] @ u[n-2 : n+2] 
+
+        (n-2:n+2 inclusive)
+
+        For n=1 we have 
+        1/(12 dt²)[10, -15, -4, 14, -6, 1] @ u[n-1 : n+4] 
+
+        and I suppose the reversed thing for n=-2
+        """
+
+        D = scipy.sparse.diags([[-1],[16],[-30 + 12*(self.w*dt)**2],[16],[-1]], [-2,-1,0,1,2], (self.Nt+1, self.Nt+1)).toarray()
+
+        D[1, 0:6] = [10, -15 + 12*(self.w*dt)**2, -4, 14, -6, 1] # Skewed scheme 
+        D[-2, -6:] = [1, -6, 14, -4, -15 + 12*(self.w*dt)**2, 10]
+        
+        D *= 1.0/(12*dt**2)
+
+        D[0, 0:6] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        D[-1, -6:] = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+        u = np.linalg.solve(D, rhs)
         return u
 
 
