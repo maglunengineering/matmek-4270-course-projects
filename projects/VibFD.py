@@ -155,7 +155,6 @@ class VibFD2(VibSolver):
         assert T.is_integer() and T % 2 == 0
 
     def __call__(self) -> np.ndarray:
-
         rhs = np.zeros(self.Nt + 1)
         rhs[0] = self.I
         rhs[-1] = self.I
