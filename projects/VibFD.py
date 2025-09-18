@@ -9,6 +9,7 @@ We use various boundary conditions.
 """
 
 import numpy as np
+import scipy
 import matplotlib.pyplot as plt
 import sympy as sp
 
@@ -114,7 +115,7 @@ class VibSolver:
 
     def test_order(self, m: int = 5, N0: int = 100, tol: float = 0.1) -> None:
         r, E, dt = self.convergence_rates(m, N0)
-        assert abs(r[-1] - self.order) < tol
+        assert abs(r[-1] - self.order) < tol, f'Expected {self.order}, got {r[-1]} ({type(self).__name__})'
 
 
 class VibHPL(VibSolver):
@@ -133,6 +134,8 @@ class VibHPL(VibSolver):
         for n in range(1, self.Nt):
             u[n + 1] = 2 * u[n] - u[n - 1] - self.dt**2 * self.w**2 * u[n]
         return u
+    
+    
 
 
 class VibFD2(VibSolver):
@@ -152,7 +155,40 @@ class VibFD2(VibSolver):
         assert T.is_integer() and T % 2 == 0
 
     def __call__(self) -> np.ndarray:
-        u = np.zeros(self.Nt + 1)
+        rhs = np.zeros(self.Nt + 1)
+        rhs[0] = self.I
+        rhs[-1] = self.I
+
+        """We have 
+        u'' + w² u[n] = 0
+        where u'' = (u[n+1] - 2*u[n] + u[n-1])/(dt²)
+        i.e. u'' = 1/dt² [1 -2 1] @ [u[i-1], u[i], u[i+1]]
+
+        In total, 
+        u'' = 1/dt² [1 -2 1] @ [u[i-1] u[i] u[i+1]] + w²u[i],
+        u'' = 1/dt² [1 -2 + (w dt)² 1] @ [u[i-1] u[i] u[i+1]]
+
+        """
+
+        dt = self.T / self.Nt
+        D = np.zeros((self.Nt + 1, self.Nt + 1))
+
+        idiag = np.arange(self.Nt + 1)
+        D[idiag, idiag] = -2 + (self.w * dt)**2 # Main diagonal is this (-g or whatever) 
+        D[idiag[:-1], (idiag+1)[:-1]] = 1.0 # Neighboring diagonals are 1.0/dt²
+        D[(idiag+1)[:-1], idiag[:-1]] = 1.0
+
+        """
+        Now all non-boundary equations are 1/dt² [1, -2+(w dt)², 1] @ [u[i-1], u[i], i[i+1]].T = [0.0]
+        Boundary equations are [1, 0, 0, ...] @ u = [I] and 
+        [0, 0, .., 0, 1] @ u = [I]
+        """
+
+        D *= 1.0/dt**2
+        D[0, 0:2] = [1.0, 0.0] 
+        D[-1, -2:] = [0.0, 1.0]
+
+        u = np.linalg.solve(D, rhs)
         return u
 
 
@@ -174,7 +210,30 @@ class VibFD3(VibSolver):
         assert T.is_integer() and T % 2 == 0
 
     def __call__(self) -> np.ndarray:
-        u = np.zeros(self.Nt + 1)
+        rhs = np.zeros(self.Nt + 1)
+        rhs[0] = self.I
+
+        dt = self.T / self.Nt
+        D = np.zeros((self.Nt + 1, self.Nt + 1))
+
+        """
+        Like VibFD2 above, non-boundary equations are 1/dt² [1, -2+(w dt)², 1] @ [u[i-1], u[i], i[i+1]].T = [0.0]
+        Boundary eqn (1) is [1, 0, 0, ...] @ u = [I]
+        Boundary eqn (2) is [.., 1, -4, 3] @ u = [0] for 2nd order accurate bw difference
+
+        """
+
+        idiag = np.arange(self.Nt + 1)
+        D[idiag, idiag] = -2 + (self.w * dt)**2
+        D[idiag[:-1], (idiag+1)[:-1]] = 1.0
+        D[(idiag+1)[:-1], idiag[:-1]] = 1.0
+
+        D *= 1.0/dt**2
+
+        D[0, 0:2] = [1.0, 0.0] # Boundary eqn (1) = [1, 0, ..] @ u = rhs[0] = I
+        D[-1, -3:] = [1.0, -4.0, 3.0] # Boundary eqn (2) = 1/dt² [.., 1, -4, 3] @ u = rhs[-1] = 0
+
+        u = np.linalg.solve(D, rhs)
         return u
 
 
@@ -190,7 +249,35 @@ class VibFD4(VibFD2):
     order: int = 4
 
     def __call__(self) -> np.ndarray:
-        u = np.zeros(self.Nt + 1)
+        rhs = np.zeros(self.Nt + 1)
+        rhs[0] = self.I
+        rhs[-1] = self.I
+
+        dt = self.T / self.Nt
+
+        """
+        Fourth order. Now our stencil is 
+        1/(12 dt²)[-1, 16, -30, 16, -1] @ u[n-2 : n+2] 
+
+        (n-2:n+2 inclusive)
+
+        For n=1 we have 
+        1/(12 dt²)[10, -15, -4, 14, -6, 1] @ u[n-1 : n+4] 
+
+        and I suppose the reversed thing for n=-2
+        """
+
+        D = scipy.sparse.diags([[-1],[16],[-30 + 12*(self.w*dt)**2],[16],[-1]], [-2,-1,0,1,2], (self.Nt+1, self.Nt+1)).toarray()
+
+        D[1, 0:6] = [10, -15 + 12*(self.w*dt)**2, -4, 14, -6, 1] # Skewed scheme 
+        D[-2, -6:] = [1, -6, 14, -4, -15 + 12*(self.w*dt)**2, 10]
+        
+        D *= 1.0/(12*dt**2)
+
+        D[0, 0:6] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        D[-1, -6:] = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+        u = np.linalg.solve(D, rhs)
         return u
 
 

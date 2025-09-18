@@ -23,8 +23,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest numpy matplotlib
+        pip install pytest numpy matplotlib scipy sympy
     - name: Test with pytest
       run: |
         cd projects
-        pytest decay_v3.py mesh_function.py differentiate.py
+        pytest decay_v3.py mesh_function.py differentiate.py VibFD.py VibFDMMS.py
