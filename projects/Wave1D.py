@@ -56,7 +56,11 @@ class Wave1D:
         The returned matrix is not divided by dx**2
         """
         D = sparse.diags([1, -2, 1], [-1, 0, 1], (self.N + 1, self.N + 1), "lil")
-        if bc == 1:  # Neumann condition is baked into stencil
+        if bc == 0: # Assignment 1: Implement Dirichlet bc by modifying the D2 matrix
+            D[0,0:2] = [0, 0]
+            D[-1,-2:] = [0, 0]
+
+        elif bc == 1:  # Neumann condition is baked into stencil
             raise NotImplementedError
 
         elif bc == 3:  # periodic (Note u[0] = u[-1])
@@ -157,7 +161,7 @@ class Wave1D:
 
         for n in range(2, Nt + 1):
             self.unp1[:] = 2 * self.un - self.unm1 + C**2 * (D @ self.un)
-            self.apply_bcs(bc)
+            #self.apply_bcs(bc) # Sets self.unp1[0] = sef.unp1[-1] = 0
             self.unm1[:] = self.un
             self.un[:] = self.unp1
             if n % save_step == 0:  # save every save_step timestep
