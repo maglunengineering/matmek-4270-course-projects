@@ -60,8 +60,9 @@ class Wave1D:
             D[0,0:2] = [0, 0]
             D[-1,-2:] = [0, 0]
 
-        elif bc == 1:  # Neumann condition is baked into stencil
-            raise NotImplementedError
+        elif bc == 1:  # Assignment 2: Neumann condition is baked into stencil
+            D[0,0:2] = [-2, 2]
+            D[-1,-2:] = [2, -2]
 
         elif bc == 3:  # periodic (Note u[0] = u[-1])
             raise NotImplementedError
