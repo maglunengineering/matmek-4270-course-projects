@@ -94,7 +94,16 @@ class Wave1D:
             pass
 
         elif bc == 2:  # Open boundary
-            raise NotImplementedError
+            """ du/dt + c du/dx = 0
+            
+            u_0^(n+1) = 2*(1 - c)*u_0^n * (1-c)/(1+c) u_0^(n-1) + 2c²/(1+c)*u_1^n 
+
+            u_N^(n+1) = 2*(1 - c)*u_N^n * (1-c)/(1+c) u_N^(n-1) + 2c²/(1+c)*u_(N-1)^n 
+            """
+            c = self.cfl
+            N = self.N
+            self.unp1[0] = 2*(1 - c)*self.un[0] * (1-c)/(1+c) * self.unm1[0] + 2*c**2/(1+c) * self.un[1]
+            self.unp1[N] = 2*(1 - c)*self.un[N] * (1-c)/(1+c) * self.unm1[N] + 2*c**2/(1+c) * self.un[N-1]
 
         elif bc == 3:
             raise NotImplementedError
@@ -162,7 +171,7 @@ class Wave1D:
 
         for n in range(2, Nt + 1):
             self.unp1[:] = 2 * self.un - self.unm1 + C**2 * (D @ self.un)
-            #self.apply_bcs(bc) # Sets self.unp1[0] = sef.unp1[-1] = 0
+            self.apply_bcs(bc) # Sets self.unp1[0] = sef.unp1[-1] = 0
             self.unm1[:] = self.un
             self.un[:] = self.unp1
             if n % save_step == 0:  # save every save_step timestep
