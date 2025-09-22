@@ -65,7 +65,9 @@ class Wave1D:
             D[-1,-2:] = [2, -2]
 
         elif bc == 3:  # periodic (Note u[0] = u[-1])
-            raise NotImplementedError
+            # Assignment 4
+            D[0, -2] = 1.0 # u[0]
+
 
         return D
 
@@ -93,7 +95,7 @@ class Wave1D:
         elif bc == 1:  # Neumann condition
             pass
 
-        elif bc == 2:  # Open boundary
+        elif bc == 2:  # Open boundary, assignment 3
             """ du/dt + c du/dx = 0
             
             u_0^(n+1) = 2*(1 - c)*u_0^n * (1-c)/(1+c) u_0^(n-1) + 2c²/(1+c)*u_1^n 
@@ -105,8 +107,8 @@ class Wave1D:
             self.unp1[0] = 2*(1 - c)*self.un[0] * (1-c)/(1+c) * self.unm1[0] + 2*c**2/(1+c) * self.un[1]
             self.unp1[N] = 2*(1 - c)*self.un[N] * (1-c)/(1+c) * self.unm1[N] + 2*c**2/(1+c) * self.un[N-1]
 
-        elif bc == 3:
-            raise NotImplementedError
+        elif bc == 3:            
+            self.unp1[self.N] = self.unp1[0]
 
         else:
             raise RuntimeError(f"Wrong bc = {bc}")
