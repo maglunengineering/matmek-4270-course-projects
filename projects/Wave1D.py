@@ -43,24 +43,37 @@ class Wave1D:
         self.un = np.zeros(N + 1)
         self.unm1 = np.zeros(N + 1)
 
-    def D2(self, bc: int) -> sparse.spmatrix:
+    def D2(self, bc: tuple[int, int]) -> sparse.spmatrix:
         """Return second order differentiation matrix
 
         Paramters
         ---------
-        bc : int
+        bc : (int, int)
             Boundary condition
 
         Note
         ----
         The returned matrix is not divided by dx**2
         """
-        D = sparse.diags([1, -2, 1], [-1, 0, 1], (self.N + 1, self.N + 1), "lil")
-        if bc == 1:  # Neumann condition is baked into stencil
-            raise NotImplementedError
+        if 3 in bc and bc[0] != bc[1]:
+            raise ValueError()
 
-        elif bc == 3:  # periodic (Note u[0] = u[-1])
-            raise NotImplementedError
+        D = sparse.diags([1, -2, 1], [-1, 0, 1], (self.N + 1, self.N + 1), "lil")
+        if bc[0] == 0:
+            D[0, 0:2] = [0, 0]
+
+        elif bc[0] == 1:
+            D[0, 0:2] = [-2, 2]
+
+        elif bc == (3,3):
+            D[0, -2] = 1.0
+
+
+        if bc[1] == 0:
+            D[-1, -2:] = [0, 0]
+
+        elif bc[1] == 1:
+            D[-1,-2:] = [2, -2]
 
         return D
 
@@ -81,21 +94,27 @@ class Wave1D:
 
         """
         u = u if u is not None else self.unp1
-        if bc == 0:  # Dirichlet condition
+        if bc[0] == 0:  # Dirichlet condition
             u[0] = 0
+        if bc[1] == 0:            
             u[-1] = 0
 
-        elif bc == 1:  # Neumann condition
-            pass
 
-        elif bc == 2:  # Open boundary
-            raise NotImplementedError
+        """ 
+        du/dt + c du/dx = 0
+            
+        u_0^(n+1) = 2*(1 - c)*u_0^n * (1-c)/(1+c) u_0^(n-1) + 2c²/(1+c)*u_1^n 
+        u_N^(n+1) = 2*(1 - c)*u_N^n * (1-c)/(1+c) u_N^(n-1) + 2c²/(1+c)*u_(N-1)^n 
+        """
+        c = self.cfl
+        N = self.N
+        if bc[0] == 2:
+            self.unp1[0] = 2*(1 - c)*self.un[0] * (1-c)/(1+c) * self.unm1[0] + 2*c**2/(1+c) * self.un[1]
+        if bc[1] == 2:
+            self.unp1[N] = 2*(1 - c)*self.un[N] * (1-c)/(1+c) * self.unm1[N] + 2*c**2/(1+c) * self.un[N-1]            
 
-        elif bc == 3:
-            raise NotImplementedError
-
-        else:
-            raise RuntimeError(f"Wrong bc = {bc}")
+        if bc == (3,3):
+            self.unp1[self.N] = self.unp1[0]
 
     @property
     def dt(self) -> float:
@@ -105,7 +124,7 @@ class Wave1D:
         self,
         Nt: int,
         cfl: Number | None = None,
-        bc: int = 0,
+        bc: tuple[int, int] = (0,0),
         ic: int = 0,
         save_step: int = 100,
     ) -> dict[int, np.ndarray]:
@@ -117,12 +136,13 @@ class Wave1D:
             Number of time steps
         cfl : number
             CFL number
-        bc : int, optional
+        bc : tuple[int, int]
             Boundary condition in space
             - 0 Dirichlet
             - 1 Neumann
             - 2 Open boundary
             - 3 periodic
+            bc[0] is the left boundary (x=0) and bc[1] is the right (x=L)
         ic : int, optional
             Initial conditions
             - 0 Specify un = u(x, t=0) and unm1 = u(x, t=-dt)
@@ -157,7 +177,7 @@ class Wave1D:
 
         for n in range(2, Nt + 1):
             self.unp1[:] = 2 * self.un - self.unm1 + C**2 * (D @ self.un)
-            self.apply_bcs(bc)
+            self.apply_bcs(bc) # Sets self.unp1[0] = sef.unp1[-1] = 0
             self.unm1[:] = self.un
             self.un[:] = self.unp1
             if n % save_step == 0:  # save every save_step timestep
@@ -195,7 +215,7 @@ class Wave1D:
 
         ani = animation.FuncAnimation(fig=fig, func=update, frames=len(data), blit=True)
         ani.save(
-            "wavemovie.apng", writer="pillow", fps=5
+            "wavemovie.apng", writer="pillow", fps=24
         )  # This animated png opens in a browser
         ani.to_jshtml()
         plt.show()
@@ -203,27 +223,29 @@ class Wave1D:
 
 def test_pulse_bcs():
     sol = Wave1D(100, cfl=1, L0=2, c0=1)
-    data = sol(100, bc=0, ic=0, save_step=100)
+    data = sol(100, bc=(0,0), ic=0, save_step=100)
     assert np.linalg.norm(data[0] + data[100]) < 1e-12
-    data = sol(100, bc=0, ic=1, save_step=100)
+    data = sol(100, bc=(0,0), ic=1, save_step=100)
     assert np.linalg.norm(data[0] + data[100]) < 1e-12
-    data = sol(100, bc=1, ic=0, save_step=100)
+    data = sol(100, bc=(1,1), ic=0, save_step=100)
     assert np.linalg.norm(data[0] - data[100]) < 1e-12
-    data = sol(100, bc=1, ic=1, save_step=100)
+    data = sol(100, bc=(1,1), ic=1, save_step=100)
     assert np.linalg.norm(data[0] - data[100]) < 1e-12
-    data = sol(100, bc=2, ic=0, save_step=100)
+    data = sol(100, bc=(2,2), ic=0, save_step=100)
     assert np.linalg.norm(data[100]) < 1e-12
-    data = sol(100, bc=2, ic=1, save_step=100)
+    data = sol(100, bc=(2,2), ic=1, save_step=100)
     assert np.linalg.norm(data[100]) < 1e-12
-    data = sol(100, bc=3, ic=0, save_step=100)
+    data = sol(100, bc=(3,3), ic=0, save_step=100)
     assert np.linalg.norm(data[0] - data[100]) < 1e-12
-    data = sol(100, bc=3, ic=1, save_step=100)
+    data = sol(100, bc=(3,3), ic=1, save_step=100)
     assert np.linalg.norm(data[0] - data[100]) < 1e-12
 
+def test_animation():
+    sol = Wave1D(100, cfl=1, L0=2, c0=1)
+    data = sol(100, bc=(1,0), save_step=2, ic=1)
+    sol.animation(data)
 
 if __name__ == "__main__":
-    # sol = Wave1D(100, cfl=1, L0=2, c0=1)
-    # data = sol(100, bc=3, save_step=1, ic=1)
-    # sol.animation(data)
-    test_pulse_bcs()
-    # data = sol(200, bc=2, ic=0, save_step=100)
+    test_pulse_bcs()   
+
+    #test_animation()
